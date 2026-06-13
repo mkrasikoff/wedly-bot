@@ -1,0 +1,129 @@
+name: Post Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [trunk]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  tag-and-sync:
+    if: |
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.title, 'Release v')
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull latest trunk
+        run: git pull origin trunk
+
+      - name: Extract version
+        id: version
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          VERSION="${TITLE#Release }"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV=$(git tag --sort=-version:refname | head -n 1 || echo "")
+          echo "tag=$PREV" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PREV_TAG="${{ steps.prev_tag.outputs.tag }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+          REPO="${{ github.repository }}"
+
+          # Collect commits between previous tag and HEAD
+          if [ -z "$PREV_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"%s" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"%s" ${PREV_TAG}..HEAD)
+          fi
+
+          FEATURES=""
+          BUGFIXES=""
+          INTERNAL=""
+
+          while IFS= read -r line; do
+            lower=$(echo "$line" | tr '[:upper:]' '[:lower:]')
+            if echo "$lower" | grep -qE "^release v|^sync develop"; then
+              continue
+            fi
+            if echo "$lower" | grep -qE "fix|bug|hotfix"; then
+              BUGFIXES="${BUGFIXES}- ${line}\n"
+            elif ! echo "$line" | grep -qE "^\[TASK-"; then
+              INTERNAL="${INTERNAL}- ${line}\n"
+            else
+              FEATURES="${FEATURES}- ${line}\n"
+            fi
+          done <<< "$COMMITS"
+
+          # Build header line
+          HEADER="* Release ${VERSION} by @${PR_AUTHOR} in https://github.com/${REPO}/pull/${PR_NUMBER}"
+
+          # Build Full Changelog line
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG_LINK="**Full Changelog**: https://github.com/${REPO}/compare/${PREV_TAG}...${VERSION}"
+          else
+            CHANGELOG_LINK="**Full Changelog**: https://github.com/${REPO}/commits/${VERSION}"
+          fi
+
+          # Assemble notes
+          {
+            echo "## What's Changed"
+            echo "$HEADER"
+            echo ""
+            echo "### Features"
+            if [ -n "$FEATURES" ]; then printf "$FEATURES"; fi
+            echo ""
+            echo "### Bug Fixes"
+            if [ -n "$BUGFIXES" ]; then printf "$BUGFIXES"; fi
+            echo ""
+            echo "### Internal"
+            if [ -n "$INTERNAL" ]; then printf "$INTERNAL"; fi
+            echo ""
+            echo "$CHANGELOG_LINK"
+          } > /tmp/release_notes.md
+
+          echo "notes_file=/tmp/release_notes.md" >> $GITHUB_OUTPUT
+
+      - name: Create annotated tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a ${{ steps.version.outputs.version }} \
+            -m "Release ${{ steps.version.outputs.version }}"
+          git push origin ${{ steps.version.outputs.version }}
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ steps.version.outputs.version }} \
+            --title "Release ${{ steps.version.outputs.version }}" \
+            --notes-file ${{ steps.changelog.outputs.notes_file }}
+
+      - name: Create Sync PR (trunk → develop)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base develop \
+            --head trunk \
+            --title "Sync develop from trunk after Release ${{ steps.version.outputs.version }}" \
+            --body "⚠️ Merge this PR using **regular merge** (not squash) to preserve history graph."

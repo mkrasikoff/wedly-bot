@@ -1,0 +1,26 @@
+name: Create Release PR
+
+run-name: Create Release PR v${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. 0.1.0)'
+        required: true
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Release PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base trunk \
+            --head develop \
+            --title "Release v${{ inputs.version }}" \
+            --body "Release v${{ inputs.version }}"
