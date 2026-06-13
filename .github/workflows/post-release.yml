@@ -89,13 +89,13 @@ jobs:
             echo "$HEADER"
             echo ""
             echo "### Features"
-            if [ -n "$FEATURES" ]; then printf "$FEATURES"; fi
+            if [ -n "$FEATURES" ]; then printf '%s' "$FEATURES"; fi
             echo ""
             echo "### Bug Fixes"
-            if [ -n "$BUGFIXES" ]; then printf "$BUGFIXES"; fi
+            if [ -n "$BUGFIXES" ]; then printf '%s' "$BUGFIXES"; fi
             echo ""
             echo "### Internal"
-            if [ -n "$INTERNAL" ]; then printf "$INTERNAL"; fi
+            if [ -n "$INTERNAL" ]; then printf '%s' "$INTERNAL"; fi
             echo ""
             echo "$CHANGELOG_LINK"
           } > /tmp/release_notes.md
