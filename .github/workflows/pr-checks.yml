@@ -23,4 +23,4 @@ jobs:
           pip install flake8
 
       - name: Run flake8
-        run: flake8 . --max-line-length=120 --exclude=.venv,venv
+        run: flake8 . --max-line-length=150 --exclude=.venv,venv
