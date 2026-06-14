@@ -1,3 +1,5 @@
+import warnings
+from telegram.warnings import PTBUserWarning
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ContextTypes,
@@ -9,6 +11,8 @@ from telegram.ext import (
 )
 from bot.services.room_service import create_room, join_room
 from bot.logger import logger
+
+warnings.filterwarnings("ignore", category=PTBUserWarning)
 
 CHOOSE_ACTION, ENTER_CODE = range(2)
 
