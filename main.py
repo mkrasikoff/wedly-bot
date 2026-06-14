@@ -1,14 +1,18 @@
+import asyncio
 from telegram.ext import ApplicationBuilder
 from config import BOT_TOKEN
 from bot.database.db import init_db
 from bot.handlers.start import onboarding_handler
-import asyncio
+from bot.logger import logger
 
 
 def main():
-    asyncio.get_event_loop().run_until_complete(init_db())
+    logger.info("Starting Wedly bot...")
+    asyncio.run(init_db())
+    logger.info("Database initialized")
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(onboarding_handler)
+    logger.info("Handlers registered, polling started")
     app.run_polling()
 
 
