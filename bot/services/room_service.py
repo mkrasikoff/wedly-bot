@@ -1,13 +1,13 @@
-from __future__ import annotations
-
 import random
 import string
 import aiosqlite
 from bot.data.animals import ANIMALS
 from bot.database.db import DB_PATH
+from bot.logger import logger
+from typing import Optional, Tuple
 
 
-def generate_room_code() -> tuple[str, str, str]:
+def generate_room_code() -> Tuple[str, str, str]:
     animal = random.choice(ANIMALS)
     digits = "".join(random.choices(string.digits, k=4))
     code = f"{animal['name']}-{digits}"
@@ -15,6 +15,7 @@ def generate_room_code() -> tuple[str, str, str]:
 
 
 async def create_room(telegram_id: int, name: str) -> dict:
+    logger.info("Creating room for user %s (tg_id=%d)", name, telegram_id)
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         await db.execute(
@@ -26,6 +27,7 @@ async def create_room(telegram_id: int, name: str) -> dict:
         ) as cursor:
             user = await cursor.fetchone()
         user_id = user["id"]
+        logger.debug("User resolved: id=%d, name=%s", user_id, name)
 
         code, animal, emoji = generate_room_code()
         for _ in range(10):
@@ -35,6 +37,7 @@ async def create_room(telegram_id: int, name: str) -> dict:
                 existing = await cursor.fetchone()
             if not existing:
                 break
+            logger.debug("Code collision on %s, retrying...", code)
             code, animal, emoji = generate_room_code()
 
         await db.execute(
@@ -53,10 +56,12 @@ async def create_room(telegram_id: int, name: str) -> dict:
         )
         await db.commit()
 
-        return {"code": code, "animal": animal, "emoji": emoji, "room_id": room_id}
+    logger.info("Room created: code=%s, animal=%s, room_id=%d", code, animal, room_id)
+    return {"code": code, "animal": animal, "emoji": emoji, "room_id": room_id}
 
 
-async def join_room(telegram_id: int, name: str, code: str) -> dict | None:
+async def join_room(telegram_id: int, name: str, code: str) -> Optional[dict]:
+    logger.info("User %s (tg_id=%d) attempting to join room: %s", name, telegram_id, code)
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         await db.execute(
@@ -73,7 +78,9 @@ async def join_room(telegram_id: int, name: str, code: str) -> dict | None:
                 "SELECT * FROM rooms WHERE code = ?", (code.lower(),)
         ) as cursor:
             room = await cursor.fetchone()
+
         if not room:
+            logger.warning("Room not found: code=%s, requested by tg_id=%d", code, telegram_id)
             return None
 
         room_id = room["id"]
@@ -94,10 +101,12 @@ async def join_room(telegram_id: int, name: str, code: str) -> dict | None:
         ) as cursor:
             members = await cursor.fetchall()
 
-        return {
-            "code": room["code"],
-            "animal": room["animal"],
-            "emoji": room["emoji"],
-            "room_id": room_id,
-            "other_members": [m["telegram_id"] for m in members],
-        }
+    other = [m["telegram_id"] for m in members]
+    logger.info("User %s joined room %s, notifying %d member(s)", name, code, len(other))
+    return {
+        "code": room["code"],
+        "animal": room["animal"],
+        "emoji": room["emoji"],
+        "room_id": room_id,
+        "other_members": other,
+    }

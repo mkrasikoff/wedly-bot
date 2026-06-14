@@ -8,11 +8,14 @@ from telegram.ext import (
     filters,
 )
 from bot.services.room_service import create_room, join_room
+from bot.logger import logger
 
 CHOOSE_ACTION, ENTER_CODE = range(2)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.message.from_user
+    logger.info("/start from user %s (tg_id=%d)", user.first_name, user.id)
     keyboard = [
         [
             InlineKeyboardButton("🏠 Создать комнату", callback_data="create"),
@@ -29,8 +32,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def on_create(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-
     user = query.from_user
+    logger.info("User %s (tg_id=%d) chose: create room", user.first_name, user.id)
+
     room = await create_room(user.id, user.first_name)
 
     await query.edit_message_text(
@@ -45,6 +49,8 @@ async def on_create(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def on_join_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
+    user = query.from_user
+    logger.info("User %s (tg_id=%d) chose: join room", user.first_name, user.id)
 
     await query.edit_message_text("Введи код комнаты:")
     return ENTER_CODE
@@ -53,6 +59,7 @@ async def on_join_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def on_join_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
     code = update.message.text.strip().lower()
+    logger.info("User %s (tg_id=%d) entered code: %s", user.first_name, user.id, code)
 
     result = await join_room(user.id, user.first_name, code)
 
@@ -73,11 +80,14 @@ async def on_join_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
             text=f"👋 *{user.first_name}* присоединился к комнате {result['emoji']}",
             parse_mode="Markdown",
         )
+        logger.info("Notified member tg_id=%d about new joiner %s", member_tg_id, user.first_name)
 
     return ConversationHandler.END
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.message.from_user
+    logger.info("User %s (tg_id=%d) cancelled onboarding", user.first_name, user.id)
     await update.message.reply_text("Окей, до встречи! 🐾")
     return ConversationHandler.END
 
@@ -94,4 +104,5 @@ onboarding_handler = ConversationHandler(
         ],
     },
     fallbacks=[CommandHandler("cancel", cancel)],
+    per_message=False,
 )
