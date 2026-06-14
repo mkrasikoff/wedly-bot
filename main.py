@@ -1,16 +1,14 @@
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler
+from telegram.ext import ApplicationBuilder
 from config import BOT_TOKEN
-from bot.handlers.start import start_handler
-from bot.handlers.room import room_callback_handler
 from bot.database.db import init_db
+from bot.handlers.start import onboarding_handler
 import asyncio
 
 
 def main():
     asyncio.get_event_loop().run_until_complete(init_db())
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start_handler))
-    app.add_handler(CallbackQueryHandler(room_callback_handler))
+    app.add_handler(onboarding_handler)
     app.run_polling()
 
 
