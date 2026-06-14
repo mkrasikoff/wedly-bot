@@ -12,6 +12,11 @@ from bot.logger import logger
 
 CHOOSE_ACTION, ENTER_CODE = range(2)
 
+import warnings
+from telegram.warnings import PTBUserWarning
+
+warnings.filterwarnings("ignore", category=PTBUserWarning)
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
