@@ -1,0 +1,17 @@
+ANIMALS = [
+    {"name": "cat", "emoji": "🐱"},
+    {"name": "dog", "emoji": "🐶"},
+    {"name": "bunny", "emoji": "🐰"},
+    {"name": "duck", "emoji": "🦆"},
+    {"name": "hamster", "emoji": "🐹"},
+    {"name": "penguin", "emoji": "🐧"},
+    {"name": "fox", "emoji": "🦊"},
+    {"name": "bear", "emoji": "🐻"},
+    {"name": "panda", "emoji": "🐼"},
+    {"name": "frog", "emoji": "🐸"},
+    {"name": "koala", "emoji": "🐨"},
+    {"name": "hedgehog", "emoji": "🦔"},
+    {"name": "capybara", "emoji": "🦫"},
+    {"name": "otter", "emoji": "🦦"},
+    {"name": "sloth", "emoji": "🦥"},
+]
