@@ -10,6 +10,7 @@ from telegram.ext import (
     filters,
 )
 from bot.services.room_service import create_room, join_room
+from bot.database.models import get_user_room
 from bot.logger import logger
 
 warnings.filterwarnings("ignore", category=PTBUserWarning)
@@ -20,6 +21,15 @@ CHOOSE_ACTION, ENTER_CODE = range(2)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
     logger.info("/start from user %s (tg_id=%d)", user.first_name, user.id)
+
+    room = context.user_data.get("room") or await get_user_room(user.id)
+    if room:
+        context.user_data["room"] = room
+        logger.info("User %s already in room %s, showing menu", user.first_name, room["code"])
+        from bot.handlers.room import show_room_menu
+        await show_room_menu(update, context)
+        return ConversationHandler.END
+
     keyboard = [
         [
             InlineKeyboardButton("🏠 Создать комнату", callback_data="create"),
@@ -40,6 +50,7 @@ async def on_create(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info("User %s (tg_id=%d) chose: create room", user.first_name, user.id)
 
     room = await create_room(user.id, user.first_name)
+    context.user_data["room"] = room
 
     await query.edit_message_text(
         f"{room['emoji']} Комната создана!\n\n"
@@ -72,6 +83,8 @@ async def on_join_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
             "Комната с таким кодом не найдена. Проверь код и попробуй ещё раз:"
         )
         return ENTER_CODE
+
+    context.user_data["room"] = result
 
     await update.message.reply_text(
         f"{result['emoji']} Ты вошёл в комнату *{result['code']}*! 🎉",
