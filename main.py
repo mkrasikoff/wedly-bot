@@ -1,7 +1,8 @@
-from telegram.ext import ApplicationBuilder, Application
+from telegram.ext import ApplicationBuilder, Application, CallbackQueryHandler
 from config import BOT_TOKEN
 from bot.database.db import init_db
 from bot.handlers.start import onboarding_handler
+from bot.handlers.room import on_leave, on_room_stub
 from bot.logger import logger
 
 
@@ -19,6 +20,8 @@ def main():
         .build()
     )
     app.add_handler(onboarding_handler)
+    app.add_handler(CallbackQueryHandler(on_leave, pattern="^room:leave$"))
+    app.add_handler(CallbackQueryHandler(on_room_stub, pattern="^room:"))
     logger.info("Handlers registered, polling started")
     app.run_polling()
 
