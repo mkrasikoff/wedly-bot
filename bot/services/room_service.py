@@ -29,6 +29,12 @@ async def create_room(telegram_id: int, name: str) -> dict:
         user_id = user["id"]
         logger.debug("User resolved: id=%d, name=%s", user_id, name)
 
+        # Выходим из всех предыдущих комнат
+        await db.execute(
+            "DELETE FROM room_members WHERE user_id = ?",
+            (user_id,),
+        )
+
         code, animal, emoji = generate_room_code()
         for _ in range(10):
             async with db.execute(
@@ -49,6 +55,11 @@ async def create_room(telegram_id: int, name: str) -> dict:
         ) as cursor:
             room = await cursor.fetchone()
         room_id = room["id"]
+
+        await db.execute(
+            "DELETE FROM room_members WHERE user_id = ?",
+            (user_id,),
+        )
 
         await db.execute(
             "INSERT INTO room_members (room_id, user_id) VALUES (?, ?)",
