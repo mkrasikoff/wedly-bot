@@ -9,7 +9,6 @@ from bot.database.models import (
     save_mood_check,
     get_latest_mood_check,
 )
-from bot.data.activities import MOOD_TO_CATEGORIES, get_activities_by_categories
 from bot.logger import logger
 
 MOOD_QUESTION_TEXT = (
@@ -92,27 +91,26 @@ async def on_mood_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     waiting_chat_id = context.bot_data.pop(f"waiting_{room['room_id']}", None)
     if waiting_chat_id:
-        await context.bot.send_message(
-            chat_id=waiting_chat_id,
-            text="Партнёр ответил — подбираю идеи для вас обоих! 🔍\n\n🚧 Голосование появится совсем скоро.",
-        )
+        await _notify_partner_match_ready(context, waiting_chat_id, room)
 
 
 async def _start_matching(query, context: ContextTypes.DEFAULT_TYPE, room: dict, avg_score: int) -> None:
+    from bot.handlers.vote import pick_activities, show_activity_vote
     session_id = str(uuid4())
-    categories = MOOD_TO_CATEGORIES[avg_score]
-    activities = get_activities_by_categories(categories)
+    activities = await pick_activities(room["room_id"], avg_score)
 
     context.bot_data[f"session_activities_{session_id}"] = activities
     context.bot_data[f"current_session_{room['room_id']}"] = session_id
 
     logger.info(
-        "Session %s started for room %s, avg_score=%d, categories=%s, activities=%d",
-        session_id, room["code"], avg_score, categories, len(activities),
+        "Session %s started for room %s, avg_score=%d, activities=%d",
+        session_id, room["code"], avg_score, len(activities),
     )
+    await show_activity_vote(query, context, room, activities, session_id)
 
-    await query.edit_message_text(
-        f"Настроение учтено! Средний балл: {avg_score} 🎯\n\n"
-        f"Категории: {', '.join(categories)}\n\n"
-        "🚧 Голосование за активности появится в следующем обновлении!"
-    )
+
+async def _notify_partner_match_ready(context: ContextTypes.DEFAULT_TYPE, chat_id: int, room: dict) -> None:
+    from bot.handlers.vote import show_activity_vote
+    session_id = context.bot_data.get(f"current_session_{room['room_id']}")
+    activities = context.bot_data.get(f"session_activities_{session_id}", [])
+    await show_activity_vote(chat_id, context, room, activities, session_id)
