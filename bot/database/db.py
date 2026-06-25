@@ -59,9 +59,9 @@ async def init_db():
                                CREATE TABLE IF NOT EXISTS favorites (
                                                                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                                                                         room_id INTEGER NOT NULL REFERENCES rooms(id),
-                                   user_id INTEGER NOT NULL REFERENCES users(id),
                                    activity_id INTEGER NOT NULL REFERENCES activities(id),
-                                   UNIQUE(room_id, user_id, activity_id)
+                                   added_by INTEGER REFERENCES users(id),
+                                   UNIQUE(room_id, activity_id)
                                    );
 
                                CREATE TABLE IF NOT EXISTS activity_log (
