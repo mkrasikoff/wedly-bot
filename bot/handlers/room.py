@@ -1,6 +1,6 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from bot.database.models import leave_room
+from bot.database.models import get_user_room, leave_room
 from bot.logger import logger
 
 
@@ -30,7 +30,14 @@ async def on_leave(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     user = query.from_user
+
     room = context.user_data.get("room")
+    if not room:
+        room = await get_user_room(user.id)
+    if not room:
+        logger.warning("User %s (tg_id=%d) tried to leave but has no room", user.first_name, user.id)
+        await query.edit_message_text("Ты уже не в комнате. Напиши /start 🐾")
+        return
 
     await leave_room(user.id, room["room_id"])
     context.user_data.pop("room", None)
@@ -41,7 +48,7 @@ async def on_leave(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def on_room_stub(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def on_room_stub(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     await query.edit_message_text("🚧 Этот раздел скоро появится!")
