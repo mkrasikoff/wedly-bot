@@ -16,14 +16,29 @@ async def show_room_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         [InlineKeyboardButton("📋 Все идеи", callback_data="room:list")],
         [InlineKeyboardButton("🚪 Выйти из комнаты", callback_data="room:leave")],
     ]
-    text = (
-        f"{room['emoji']} Комната *{room['code']}*\n\n"
-        f"Что будем делать?"
-    )
+    text = f"{room['emoji']} Комната *{room['code']}*\n\nЧто будем делать?"
+
     if update.callback_query:
-        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await update.callback_query.edit_message_text(
+            text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown"
+        )
     else:
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await update.message.reply_text(
+            text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown"
+        )
+
+
+async def on_room_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    user = query.from_user
+
+    room = context.user_data.get("room") or await get_user_room(user.id)
+    if not room:
+        await query.edit_message_text("Ты не в комнате. Напиши /start 🐾")
+        return
+    context.user_data["room"] = room
+    await show_room_menu(update, context)
 
 
 async def on_leave(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -31,9 +46,7 @@ async def on_leave(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await query.answer()
     user = query.from_user
 
-    room = context.user_data.get("room")
-    if not room:
-        room = await get_user_room(user.id)
+    room = context.user_data.get("room") or await get_user_room(user.id)
     if not room:
         logger.warning("User %s (tg_id=%d) tried to leave but has no room", user.first_name, user.id)
         await query.edit_message_text("Ты уже не в комнате. Напиши /start 🐾")
