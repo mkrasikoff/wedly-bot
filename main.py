@@ -14,6 +14,7 @@ from bot.handlers.favorites import (
     on_fav_card,
     on_fav_remove,
 )
+from bot.handlers.feedback import on_feedback_was_done, on_feedback_liked
 from bot.logger import logger
 from telegram.ext import ContextTypes
 
@@ -49,6 +50,8 @@ def main():
     app.add_handler(CallbackQueryHandler(on_fav_toggle, pattern=r"^fav:toggle:\d+(:\d+)?$"))
     app.add_handler(CallbackQueryHandler(on_fav_card, pattern=r"^fav:card:\d+$"))
     app.add_handler(CallbackQueryHandler(on_fav_remove, pattern=r"^fav:remove:\d+$"))
+    app.add_handler(CallbackQueryHandler(on_feedback_was_done, pattern=r"^fb:done:(yes|no):\d+:[a-f0-9\-]+$"))
+    app.add_handler(CallbackQueryHandler(on_feedback_liked, pattern=r"^fb:liked:(yes|no):\d+:[a-f0-9\-]+$"))
     app.add_handler(CallbackQueryHandler(on_leave, pattern="^room:leave$"))
     app.add_handler(CallbackQueryHandler(on_room_stub, pattern="^room:"))
     app.add_error_handler(on_error)

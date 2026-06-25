@@ -2,6 +2,7 @@ import random
 from collections import Counter
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+from bot.handlers.feedback import schedule_feedback
 from bot.data.activities import MOOD_TO_CATEGORIES, get_activities_by_categories, get_activity_by_id
 from bot.database.models import (
     get_user_room,
@@ -246,4 +247,13 @@ async def _announce_winner(context: ContextTypes.DEFAULT_TYPE, session_id: str, 
         activity_id=winner["id"],
         session_id=session_id,
     )
+
+    schedule_feedback(
+        context=context,
+        session_id=session_id,
+        room_id=room["room_id"],
+        activity_id=winner["id"],
+        members=members,
+    )
+
     logger.info("Winner announced: activity %d in session %s, room %s", winner["id"], session_id, room["code"])
