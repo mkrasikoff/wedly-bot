@@ -90,3 +90,67 @@ async def get_latest_mood_check(room_id: int, user_id: int) -> Optional[dict]:
         ) as cursor:
             row = await cursor.fetchone()
         return dict(row) if row else None
+
+
+async def get_user_by_id(user_id: int) -> Optional[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+                "SELECT id, telegram_id, name FROM users WHERE id = ?",
+                (user_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        return dict(row) if row else None
+
+
+async def get_favorite_activity_ids(room_id: int) -> List[int]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+                "SELECT activity_id FROM favorites WHERE room_id = ?",
+                (room_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        return [r[0] for r in rows]
+
+
+async def save_vote(room_id: int, user_id: int, activity_id: int, session_id: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT OR IGNORE INTO votes (room_id, user_id, activity_id, session_id, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (room_id, user_id, activity_id, session_id, datetime.utcnow().isoformat()),
+        )
+        await db.commit()
+
+
+async def get_votes_by_session(session_id: str) -> List[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+                "SELECT * FROM votes WHERE session_id = ?", (session_id,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+
+async def get_users_voted_in_session(session_id: str) -> List[int]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+                "SELECT DISTINCT user_id FROM votes WHERE session_id = ?", (session_id,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+        return [r[0] for r in rows]
+
+
+async def save_activity_log(room_id: int, activity_id: int, session_id: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT OR IGNORE INTO activity_log (room_id, activity_id, session_id, completed_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (room_id, activity_id, session_id, datetime.utcnow().isoformat()),
+        )
+        await db.commit()
