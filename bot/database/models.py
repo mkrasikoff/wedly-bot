@@ -154,3 +154,32 @@ async def save_activity_log(room_id: int, activity_id: int, session_id: str) -> 
             (room_id, activity_id, session_id, datetime.utcnow().isoformat()),
         )
         await db.commit()
+
+
+async def add_to_favorites(room_id: int, activity_id: int, added_by: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO favorites (room_id, activity_id, added_by) VALUES (?, ?, ?)",
+            (room_id, activity_id, added_by),
+        )
+        await db.commit()
+
+
+async def remove_from_favorites(room_id: int, activity_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM favorites WHERE room_id = ? AND activity_id = ?",
+            (room_id, activity_id),
+        )
+        await db.commit()
+
+
+async def get_favorites_with_titles(room_id: int) -> List[dict]:
+    from bot.data.activities import get_activity_by_id
+    ids = await get_favorite_activity_ids(room_id)
+    result = []
+    for aid in ids:
+        a = get_activity_by_id(aid)
+        if a:
+            result.append({"activity_id": aid, "title": a["title"]})
+    return result
