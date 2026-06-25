@@ -183,3 +183,21 @@ async def get_favorites_with_titles(room_id: int) -> List[dict]:
         if a:
             result.append({"activity_id": aid, "title": a["title"]})
     return result
+
+
+async def update_activity_log_was_done(session_id: str, was_done: bool) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE activity_log SET was_done = ? WHERE session_id = ?",
+            (1 if was_done else 0, session_id),
+        )
+        await db.commit()
+
+
+async def update_activity_log_liked(session_id: str, liked: bool) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE activity_log SET liked = ? WHERE session_id = ?",
+            (1 if liked else 0, session_id),
+        )
+        await db.commit()
