@@ -203,10 +203,10 @@ async def update_activity_log_liked(session_id: str, liked: bool) -> None:
         await db.commit()
 
 
-async def clear_mood_checks(room_id: int) -> None:
+async def clear_mood_check_for_user(room_id: int, user_id: int) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "DELETE FROM mood_checks WHERE room_id = ?",
-            (room_id,),
+            "DELETE FROM mood_checks WHERE room_id = ? AND user_id = ?",
+            (room_id, user_id),
         )
         await db.commit()
