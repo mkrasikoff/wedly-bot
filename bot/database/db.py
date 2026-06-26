@@ -6,6 +6,7 @@ DB_PATH = os.getenv("DB_PATH", "wedly.db")
 
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
+        # Создаём таблицы
         await db.executescript("""
                                CREATE TABLE IF NOT EXISTS users (
                                                                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,4 +75,18 @@ async def init_db():
                                    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                                    );
                                """)
+
+        # Применяем миграции (идемпотентно)
+        await _run_migrations(db)
+
         await db.commit()
+
+
+async def _run_migrations(db):
+    # 001: добавить added_by в favorites
+    async with db.execute("PRAGMA table_info(favorites)") as cur:
+        cols = [row[1] for row in await cur.fetchall()]
+    if "added_by" not in cols:
+        await db.execute(
+            "ALTER TABLE favorites ADD COLUMN added_by INTEGER REFERENCES users(id)"
+        )
