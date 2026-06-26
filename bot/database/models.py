@@ -110,7 +110,7 @@ async def get_favorite_activity_ids(room_id: int) -> List[int]:
                 (room_id,),
         ) as cursor:
             rows = await cursor.fetchall()
-        return [r[0] for r in rows]
+        return [int(r[0]) for r in rows]
 
 
 async def save_vote(room_id: int, user_id: int, activity_id: int, session_id: str) -> None:

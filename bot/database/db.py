@@ -6,6 +6,7 @@ DB_PATH = os.getenv("DB_PATH", "wedly.db")
 
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
+        # Создаём таблицы
         await db.executescript("""
                                CREATE TABLE IF NOT EXISTS users (
                                                                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,4 +75,38 @@ async def init_db():
                                    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                                    );
                                """)
+
+        # Применяем миграции (идемпотентно)
+        await _run_migrations(db)
+
         await db.commit()
+
+
+async def _run_migrations(db):
+    # 001: пересоздать favorites с новой схемой если есть старый UNIQUE(room_id, user_id, activity_id)
+    async with db.execute("PRAGMA table_info(favorites)") as cur:
+        cols = [row[1] for row in await cur.fetchall()]
+    async with db.execute("PRAGMA index_list(favorites)") as cur:
+        indexes = [row[1] for row in await cur.fetchall()]
+
+    has_old_unique = any("user_id" in idx for idx in indexes)
+    has_user_id_col = "user_id" in cols
+
+    if has_user_id_col or has_old_unique:
+        await db.executescript("""
+                               CREATE TABLE IF NOT EXISTS favorites_new (
+                                                                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                                            room_id INTEGER NOT NULL REFERENCES rooms(id),
+                                   activity_id INTEGER NOT NULL REFERENCES activities(id),
+                                   added_by INTEGER REFERENCES users(id),
+                                   UNIQUE(room_id, activity_id)
+                                   );
+                               INSERT OR IGNORE INTO favorites_new (id, room_id, activity_id)
+                               SELECT id, room_id, activity_id FROM favorites;
+                               DROP TABLE favorites;
+                               ALTER TABLE favorites_new RENAME TO favorites;
+                               """)
+    elif "added_by" not in cols:
+        await db.execute(
+            "ALTER TABLE favorites ADD COLUMN added_by INTEGER REFERENCES users(id)"
+        )
