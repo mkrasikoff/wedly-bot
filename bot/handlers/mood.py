@@ -8,7 +8,8 @@ from bot.database.models import (
     get_user_by_telegram_id,
     save_mood_check,
     get_latest_mood_check,
-    clear_mood_check_for_user,
+    get_room_mood_checks_count,
+    clear_mood_checks_for_room,
 )
 from bot.logger import logger
 
@@ -61,9 +62,10 @@ async def on_mood_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await query.edit_message_text("Что-то пошло не так. Напиши /start.")
         return
 
-    # Если у этого пользователя уже есть голос — очищаем только его голос,
-    # чтобы не затереть голос партнёра
-    await clear_mood_check_for_user(room["room_id"], user["id"])
+    existing_count = await get_room_mood_checks_count(room["room_id"])
+    if existing_count == 0:
+        # Первый голосующий — чистим все старые данные этого раунда (если есть)
+        await clear_mood_checks_for_room(room["room_id"])
     await save_mood_check(room_id=room["room_id"], user_id=user["id"], score=score)
 
     members = await get_room_members(room["room_id"])

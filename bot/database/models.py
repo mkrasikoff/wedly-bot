@@ -210,3 +210,18 @@ async def clear_mood_check_for_user(room_id: int, user_id: int) -> None:
             (room_id, user_id),
         )
         await db.commit()
+
+
+async def get_room_mood_checks_count(room_id: int) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+                "SELECT COUNT(*) FROM mood_checks WHERE room_id = ?", (room_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        return row[0] if row else 0
+
+
+async def clear_mood_checks_for_room(room_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM mood_checks WHERE room_id = ?", (room_id,))
+        await db.commit()
