@@ -6,9 +6,6 @@ from bot.database.models import (
     get_user_room,
     get_room_members,
     get_user_by_telegram_id,
-    save_mood_check,
-    get_latest_mood_check,
-    clear_mood_checks_for_room,
 )
 from bot.logger import logger
 
@@ -38,14 +35,7 @@ def mood_keyboard() -> InlineKeyboardMarkup:
 async def on_mood_start(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    telegram_id = query.from_user.id
-    logger.info("User %d opened mood poll", telegram_id)
-
-    room = _context.user_data.get("room") or await get_user_room(telegram_id)
-    if room:
-        await clear_mood_checks_for_room(room["room_id"])
-        logger.info("Cleared mood checks for room %s on new poll start", room["code"])
-
+    logger.info("User %d opened mood poll", query.from_user.id)
     await query.edit_message_text(text=MOOD_QUESTION_TEXT, reply_markup=mood_keyboard())
 
 
@@ -68,9 +58,9 @@ async def on_mood_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await query.edit_message_text("Что-то пошло не так. Напиши /start.")
         return
 
-    await save_mood_check(room_id=room["room_id"], user_id=user["id"], score=score)
-
     members = await get_room_members(room["room_id"])
+    room_id = room["room_id"]
+    round_key = f"mood_round_{room_id}"
 
     if len(members) == 1:
         logger.info("Single user in room %s, starting matching immediately", room["code"])
@@ -78,11 +68,15 @@ async def on_mood_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     partner = next((m for m in members if m["telegram_id"] != telegram_id), None)
-    partner_check = await get_latest_mood_check(room_id=room["room_id"], user_id=partner["user_id"])
+    current_round = context.bot_data.get(round_key)
 
-    if partner_check is None:
-        logger.info("Waiting for partner in room %s", room["code"])
-        context.bot_data[f"waiting_{room['room_id']}"] = query.message.chat_id
+    if current_round is None:
+        # Первый голосующий — создаём раунд
+        context.bot_data[round_key] = {
+            "scores": {user["id"]: score},
+            "waiting_chat_id": query.message.chat_id,
+        }
+        logger.info("Mood round started in room %s by user %d", room["code"], telegram_id)
         await query.edit_message_text(
             text=WAITING_FOR_PARTNER_TEXT.format(name=partner["name"]),
             reply_markup=InlineKeyboardMarkup([
@@ -91,13 +85,33 @@ async def on_mood_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         return
 
-    my_check = await get_latest_mood_check(room_id=room["room_id"], user_id=user["id"])
-    avg_score = max(1, math.floor((my_check["score"] + partner_check["score"]) / 2))
+    # Второй голосующий — раунд уже есть
+    current_round["scores"][user["id"]] = score
+    partner_score = next(
+        (s for uid, s in current_round["scores"].items() if uid != user["id"]),
+        None,
+    )
+
+    if partner_score is None:
+        # Это не должно происходить, но на всякий случай
+        logger.warning("Mood round exists but no partner score found in room %s", room["code"])
+        await query.edit_message_text(
+            text=WAITING_FOR_PARTNER_TEXT.format(name=partner["name"]),
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("↩️ Назад в комнату", callback_data="room:menu")],
+            ]),
+        )
+        return
+
+    avg_score = max(1, math.floor((score + partner_score) / 2))
+    waiting_chat_id = current_round.get("waiting_chat_id")
     logger.info("Both voted in room %s, avg_score=%d", room["code"], avg_score)
+
+    # Чистим раунд до запуска сессии
+    del context.bot_data[round_key]
 
     await _start_matching(query, context, room, avg_score=avg_score)
 
-    waiting_chat_id = context.bot_data.pop(f"waiting_{room['room_id']}", None)
     if waiting_chat_id:
         await _notify_partner_match_ready(context, waiting_chat_id, room)
 
