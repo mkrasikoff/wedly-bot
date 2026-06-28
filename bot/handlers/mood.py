@@ -8,7 +8,6 @@ from bot.database.models import (
     get_user_by_telegram_id,
     save_mood_check,
     get_latest_mood_check,
-    get_room_mood_checks_count,
     clear_mood_checks_for_room,
 )
 from bot.logger import logger
@@ -39,7 +38,14 @@ def mood_keyboard() -> InlineKeyboardMarkup:
 async def on_mood_start(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    logger.info("User %d opened mood poll", query.from_user.id)
+    telegram_id = query.from_user.id
+    logger.info("User %d opened mood poll", telegram_id)
+
+    room = _context.user_data.get("room") or await get_user_room(telegram_id)
+    if room:
+        await clear_mood_checks_for_room(room["room_id"])
+        logger.info("Cleared mood checks for room %s on new poll start", room["code"])
+
     await query.edit_message_text(text=MOOD_QUESTION_TEXT, reply_markup=mood_keyboard())
 
 
@@ -62,10 +68,6 @@ async def on_mood_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await query.edit_message_text("Что-то пошло не так. Напиши /start.")
         return
 
-    existing_count = await get_room_mood_checks_count(room["room_id"])
-    if existing_count == 0:
-        # Первый голосующий — чистим все старые данные этого раунда (если есть)
-        await clear_mood_checks_for_room(room["room_id"])
     await save_mood_check(room_id=room["room_id"], user_id=user["id"], score=score)
 
     members = await get_room_members(room["room_id"])
