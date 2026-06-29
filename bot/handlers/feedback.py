@@ -34,6 +34,10 @@ def schedule_feedback(
         activity_id: int,
         members: list,
 ) -> None:
+    if context.job_queue is None:
+        logger.warning("job_queue is None — feedback scheduling skipped. Check APScheduler installation.")
+        return
+
     for member in members:
         job_name = f"feedback_{session_id}_{member['telegram_id']}"
         context.job_queue.run_once(
